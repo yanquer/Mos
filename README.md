@@ -1,3 +1,11 @@
+
+# Mos New
+
+解决在高版本崩溃问题
+
+下面是原本信息
+
+
 <p align="center">
   <a href="http://mos.caldis.me/">
     <img width="320" src="https://github.com/Caldis/Mos/blob/master/docs/resources/image/intro.png?raw=true">

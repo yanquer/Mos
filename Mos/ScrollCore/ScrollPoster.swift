@@ -32,6 +32,8 @@ class ScrollPoster {
 // MARK: - 滚动数据更新控制
 extension ScrollPoster {
     func update(event: CGEvent, proxy: CGEventTapProxy, duration: Double, y: Double, x: Double, speed: Double, amplification: Double = 1) -> Self {
+        NSLog("ScrollPoster-update ...")
+        
         // 更新依赖数据
         ref.event = event
         ref.proxy = proxy
@@ -54,9 +56,11 @@ extension ScrollPoster {
         return self
     }
     func updateShifting(enable: Bool) {
+        NSLog("ScrollPoster-updateShifting ...")
         shifting = enable
     }
     func shift(with nextValue: ( y: Double, x: Double )) -> (y: Double, x: Double) {
+        NSLog("ScrollPoster-shift ...")
         // 如果按下 Shift, 则始终将滚动转为横向
         if shifting {
             // 判断哪个轴有值, 有值则赋给 X
@@ -71,9 +75,11 @@ extension ScrollPoster {
         }
     }
     func brake() {
+        NSLog("ScrollPoster-brake ...")
         ScrollPoster.shared.buffer = ScrollPoster.shared.current
     }
     func reset() {
+        NSLog("ScrollPoster-reset ...")
         // 重置数值
         ref = (event: nil, proxy: nil)
         current = ( y: 0.0, x: 0.0 )
@@ -86,27 +92,38 @@ extension ScrollPoster {
 
 // MARK: - 插值数据发送控制
 extension ScrollPoster {
+    
+    // 新版本 MacOS , CVDisplayLinkSetOutputCallback 的回调处理 CGEvent 与 proxy 时会有多线程问题
+    //  暂时推测是 CGEvent/proxy 本身的引用还在没有回收
+    //  但是底层包含的资源可能在某一线程被回收, 而 CVDisplay 线程还是能拿到 event 调用, 并把事件发给系统队列, 系统队列底层处理的时候才知道被回收导致 BAD ACCESS...
+    //      故暂时不交给 CVDisplay 线程处理
     // 初始化 CVDisplayLink
     func create() {
+        NSLog("ScrollPoster-create ...")
         // 新建一个 CVDisplayLinkSetOutputCallback 来执行循环
-        CVDisplayLinkCreateWithActiveCGDisplays(&poster)
-        if let validPoster = poster {
-            CVDisplayLinkSetOutputCallback(validPoster, { (displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext) -> CVReturn in
-                ScrollPoster.shared.processing()
-                return kCVReturnSuccess
-            }, nil)
-        }
+//        CVDisplayLinkCreateWithActiveCGDisplays(&poster)
+//        if let validPoster = poster {
+//            CVDisplayLinkSetOutputCallback(validPoster, { (displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext) -> CVReturn in
+//                ScrollPoster.shared.processing()
+//                return kCVReturnSuccess
+//            }, nil)
+//        }
     }
     // 启动事件发送器
     func tryStart() {
-        if let validPoster = poster {
-            if !CVDisplayLinkIsRunning(validPoster) {
-                CVDisplayLinkStart(validPoster)
-            }
-        }
+        NSLog("ScrollPoster-tryStart ...")
+//        if let validPoster = poster {
+//            if !CVDisplayLinkIsRunning(validPoster) {
+//                CVDisplayLinkStart(validPoster)
+//            }
+//        }
+        ScrollPoster.shared.processing()
+        NSLog("ScrollPoster-tryStart end...")
     }
     // 停止事件发送器
     func stop(_ phase: Phase = Phase.PauseManual) {
+        NSLog("ScrollPoster-stop ...")
+        
         // 停止循环
         if let validPoster = poster {
             CVDisplayLinkStop(validPoster)
@@ -129,20 +146,27 @@ extension ScrollPoster {
 private extension ScrollPoster {
     // 处理滚动事件
     func processing() {
+        NSLog("ScrollPoster-processing ...")
+        // print("对象的内存地址: \(self.poster ?? nil)")
+        
         // 计算插值
         let frame = (
             y: Interpolator.lerp(src: current.y, dest: buffer.y, trans: duration),
             x: Interpolator.lerp(src: current.x, dest: buffer.x, trans: duration)
         )
+        NSLog("ScrollPoster-processing ... frame: \(frame)")
         // 更新滚动位置
         current = (
             y: current.y + frame.y,
             x: current.x + frame.x
         )
+        NSLog("ScrollPoster-processing ... current: \(current)")
         // 平滑滚动结果
         let filledValue = filter.fill(with: frame)
+        NSLog("ScrollPoster-processing ... filledValue: \(filledValue)")
         // 变换滚动结果
         let shiftedValue = shift(with: filledValue)
+        NSLog("ScrollPoster-processing ... shiftedValue: \(shiftedValue)")
         // 发送滚动结果
         post(ref, shiftedValue)
         // 如果临近目标距离小于精确度门限则暂停滚动
@@ -154,7 +178,9 @@ private extension ScrollPoster {
         }
     }
     func post(_ r: (event: CGEvent?, proxy: CGEventTapProxy?), _ v: (y: Double, x: Double)) {
+        NSLog("ScrollPoster-post ...")
         if let proxy = r.proxy, let eventClone = r.event?.copy() {
+        // if let proxy = r.proxy, let eventClone = r.event {
             // 设置阶段数据
             ScrollPhase.shared.transfrom()
             // 设置滚动数据
@@ -166,7 +192,13 @@ private extension ScrollPoster {
             // EventTapProxy 标识了 EventTapCallback 在事件流中接收到事件的特定位置, 其粒度小于 tap 本身
             // 使用 tapPostEvent 可以将自定义的事件发布到 proxy 标识的位置, 避免被 EventTapCallback 本身重复接收或处理
             // 新发布的事件将早于 EventTapCallback 所处理的事件进入系统, 也如同 EventTapCallback 所处理的事件, 会被所有后续的 EventTap 接收
+            print("eventClone的内存地址: \(eventClone)")
+            print("proxy的内存地址: \(proxy)")
+
+            // todo: 在 CVDisplayLink 线程中会存在线程问题...
             eventClone.tapPostEvent(proxy)
+
         }
+        NSLog("ScrollPoster-post end ...")
     }
 }

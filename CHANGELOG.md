@@ -1,3 +1,21 @@
+
+# [4.0.0]
+
+自己修改版, 解决在高版本崩溃问题
+
+
+崩溃原因暂时判断为 多线程下 `CVDisplay` 线程使用得 `CGEvent/proxy` 虽然本身引用存在,
+但是其包含的资源部分已经被回收了.
+
+
+`TapEvent` 线程更新的 `CGEvent/proxy` , `CVDisplay` 线程中是回调使用, 很难在 swift 层面
+判断是否真实可用还未回收, 并发情况下, 容易访问到已经被回收的...
+
+
+swift 还不能主动捕获 BAD_ACCESS 之类的错误, 暂时先不用 `CVDisplay` 处理, 直接在 `TapEvent` 回调处理,
+老版本也可以选择关闭 **平滑滚动** 来避免崩溃.
+
+
 # [2.2.0](https://github.com/Caldis/Mos/releases/tag/2.2.0)
 
 真帅

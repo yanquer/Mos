@@ -36,8 +36,12 @@ class ScrollCore {
     let mouseLeftEventMask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
     let mouseRightEventMask = CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
     
+    // 串行队列, 此处基本没啥用, 本来是想办法给 CVDisplay 线程串行使用 tapEvent, 但是那个地方是个回调很难保证一致
+    let serialQueue = DispatchQueue(label: "com.yq.Mos.serialQueue")
+    
     // MARK: - 滚动事件处理
     let scrollEventCallBack: CGEventTapCallBack = { (proxy, type, event, refcon) in
+        NSLog("ScrollCore - scrollEventCallBack")
         // 不处理触控板
         // 无法区分黑苹果, 因为黑苹果的触控板驱动直接模拟鼠标输入
         // 无法区分 Magic Mouse, 因为其滚动特征与内置的 Trackpad 一致
@@ -112,18 +116,22 @@ class ScrollCore {
                 }
             }
         }
-        // 触发滚动事件推送
-        if enableSmooth {
-            ScrollPoster.shared.update(
-                event: event,
-                proxy: proxy,
-                duration: duration,
-                y: scrollEvent.Y.usableValue,
-                x: scrollEvent.X.usableValue,
-                speed: speed,
-                amplification: ScrollCore.shared.dashAmplification
-            ).tryStart()
+        
+        ScrollCore.shared.serialQueue.sync{
+            // 触发滚动事件推送
+            if enableSmooth {
+                ScrollPoster.shared.update(
+                    event: event,
+                    proxy: proxy,
+                    duration: duration,
+                    y: scrollEvent.Y.usableValue,
+                    x: scrollEvent.X.usableValue,
+                    speed: speed,
+                    amplification: ScrollCore.shared.dashAmplification
+                ).tryStart()
+            }
         }
+        
         // 返回事件对象
         if returnOriginalEvent {
             return Unmanaged.passUnretained(event)
@@ -134,6 +142,8 @@ class ScrollCore {
     
     // MARK: - 热键事件处理
     let hotkeyEventCallBack: CGEventTapCallBack = { (proxy, type, event, refcon) in
+        
+        NSLog("ScrollCore - hotkeyEventCallBack")
         // 获取当前按键
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         // 判断快捷键
@@ -236,6 +246,7 @@ class ScrollCore {
     
     // MARK: - 鼠标事件处理
     let mouseLeftEventCallBack: CGEventTapCallBack = { (proxy, type, event, refcon) in
+        NSLog("ScrollCore - mouseLeftEventCallBack")
         // 如果点击左键则停止滚动
         ScrollPoster.shared.stop()
         return nil
@@ -255,6 +266,8 @@ class ScrollCore {
             placeAt: .tailAppendEventTap,
             for: .defaultTap
         )
+        
+        // debug时候可以屏蔽掉非滚动捕获
         hotkeyEventInterceptor = Interceptor(
             event: hotkeyEventMask,
             handleBy: hotkeyEventCallBack,
@@ -269,11 +282,13 @@ class ScrollCore {
             placeAt: .tailAppendEventTap,
             for: .listenOnly
         )
+        
         // 初始化滚动事件发送器
         ScrollPoster.shared.create()
     }
     // 停止
     func endHandlingScroll() {
+        NSLog("ScrollCore - endHandlingScroll")
         // Guard
         if !isActive {return}
         isActive = false

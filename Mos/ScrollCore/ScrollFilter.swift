@@ -13,8 +13,23 @@ class ScrollFilter {
     var curveWindowY = [0.0, 0.0]
     var curveWindowX = [0.0, 0.0]
     
+    var lastY = 0.0
     // 填充值
     public func fill(with nextValue: ( y: Double, x: Double )) -> ( y: Double, x: Double ) {
+        
+        // CVDisplayLinkSetOutputCallback 屏蔽后开启平滑会有滚动惯性
+        //  暂时兼容处理:
+        //  如果滚动方向与上次不一致, 取消惯性平滑
+        if (
+            (lastY > 0 && nextValue.y < 0) ||
+            (lastY < 0 && nextValue.y > 0)
+        ){
+            NSLog("ScrollFilter-fill... reset window position")
+            reset()
+        }
+        
+        lastY = nextValue.y
+        
         curveWindowY = polish(curveWindowY, with: nextValue.y)
         curveWindowX = polish(curveWindowX, with: nextValue.x)
         return value()
