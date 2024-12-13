@@ -22,6 +22,13 @@ class ScrollUniformEvent{
         destY = y
         destX = x
     }
+    
+    // 是否变换 x, y 位置
+    var shifting = false
+    func updateShifting(enable: Bool) {
+        NSLog("ScrollPoster-updateShifting ...")
+        shifting = enable
+    }
 }
 
 // 滚轮匀速滚动的封装
@@ -29,7 +36,10 @@ extension ScrollUniformEvent{
     
     func isCustomEvent(event: CGEvent?, step: Double) -> Bool{
         // 比最小步长小, 仅反转
-        return step >= abs(destY)
+        // return step >= abs(destY) || step >= abs(destX)
+        
+        // 不会捕获到自己发出的事件, 不用这个判断了
+        return false
     }
     func setCustomEvent(event: CGEvent?) -> Void{
         // event?.keyboardSetUnicodeString(stringLength: 20, unicodeString: "com.yq.mos.event")
@@ -54,34 +64,57 @@ extension ScrollUniformEvent{
             
             return
         }
+
         var accumulatedDeltaX = 0.0
         var accumulatedDeltaY = 0.0
         var idx = 0
         let xDirection: Int32 = _x > 0 ? 1:-1
         let yDirection: Int32 = _y > 0 ? 1:-1
         
-        // NSLog("ScrollEvent-srollSmooth ... y: \(_y) ")
+        NSLog("ScrollEvent-srollSmooth ... y: \(_y) step: \(step)")
         
-        while (accumulatedDeltaY < abs(_y)){
+        while (accumulatedDeltaY < abs(_y) || accumulatedDeltaX < abs(_x)){
             accumulatedDeltaY += step
+            
+            // 是否增量 y
+            var hasY = true
+            if (accumulatedDeltaX > abs(_x)) {
+                accumulatedDeltaX = abs(_x)
+                hasY = false
+            }
+            // 是否增量 x
+            var hasX = true
             accumulatedDeltaX += step
             if (accumulatedDeltaX > abs(_x)) {
                 accumulatedDeltaX = abs(_x)
+                hasX = false
             }
             idx += 1
+            
+            //
+            if (!hasX && !hasY) {break}
+            
+            // 如果有变换方向,
+            // 变换滚动结果
+            var xVal = hasX ? deltaX * Double(xDirection) : 0
+            var yVal = hasY ? deltaY * Double(yDirection) : 0
+            var useVal = [xVal, yVal]
+            if shifting {
+                useVal = [yVal, xVal]
+            }
             
             DispatchQueue.main.asyncAfter(
                 // deadline: .now() + 0.01 * Double(idx),
                 // 120 帧, 手动模拟帧率, 因为 CvdDisplay 有毛病
                 deadline: .now() + 1 / 120 * Double(idx),
                 execute: {
-                    NSLog("ScrollEvent-srollSmooth \(idx) with \(_y)...")
+                    // NSLog("ScrollEvent-srollSmooth \(idx) with \(_y)...")
                     
                     self.doScrollWithEvent(
                         originEvent: originEvent,
                         proxy: proxy,
-                        xVal: deltaX * Double(xDirection),
-                        yVal: deltaY * Double(yDirection)
+                        xVal: useVal[0],
+                        yVal: useVal[1]
                     )
                     
 //                    self.doScrollWithNewEvent(

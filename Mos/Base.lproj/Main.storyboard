@@ -1621,7 +1621,7 @@ Gw
                                     <constraint firstAttribute="width" constant="167" id="oWf-Q1-9W7"/>
                                     <constraint firstAttribute="height" constant="15" id="srb-fM-rp2"/>
                                 </constraints>
-                                <sliderCell key="cell" controlSize="small" alignment="left" minValue="10" maxValue="100" doubleValue="35" tickMarkPosition="above" numberOfTickMarks="5" sliderType="linear" id="NW9-iV-Ilr"/>
+                                <sliderCell key="cell" controlSize="small" alignment="left" minValue="1" maxValue="100" doubleValue="35" tickMarkPosition="above" numberOfTickMarks="5" sliderType="linear" id="NW9-iV-Ilr"/>
                                 <connections>
                                     <action selector="scrollStepSliderChange:" target="iW5-CD-5OC" id="kjo-L9-w60"/>
                                 </connections>
@@ -1646,7 +1646,7 @@ Gw
                             </textField>
                             <stepper wantsLayer="YES" horizontalHuggingPriority="750" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="a9X-MM-XsO" userLabel="Scroll Step Stepper">
                                 <rect key="frame" x="404" y="186" width="19" height="29"/>
-                                <stepperCell key="cell" continuous="YES" alignment="left" increment="0.01" minValue="10" maxValue="100" doubleValue="35" id="l5w-H3-FUv"/>
+                                <stepperCell key="cell" continuous="YES" alignment="left" increment="0.01" minValue="1" maxValue="100" doubleValue="35" id="l5w-H3-FUv"/>
                                 <connections>
                                     <action selector="scrollStepStepperChange:" target="iW5-CD-5OC" id="LSH-W5-eWh"/>
                                 </connections>

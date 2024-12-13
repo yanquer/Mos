@@ -20,7 +20,10 @@ class ScrollCore {
     var dashScroll = false
     var dashAmplification = 1.0
     var toggleScroll = false {
-        didSet { ScrollPoster.shared.updateShifting(enable: toggleScroll) }
+        didSet {
+            ScrollPoster.shared.updateShifting(enable: toggleScroll)
+            ScrollUniformEvent.shared.updateShifting(enable: toggleScroll)
+        }
     }
     var blockSmooth = false
     // 例外应用数据
@@ -41,7 +44,7 @@ class ScrollCore {
     
     // MARK: - 滚动事件处理
     let scrollEventCallBack: CGEventTapCallBack = { (proxy, type, event, refcon) in
-        NSLog("ScrollCore - scrollEventCallBack")
+        // NSLog("ScrollCore - scrollEventCallBack")
         // 不处理触控板
         // 无法区分黑苹果, 因为黑苹果的触控板驱动直接模拟鼠标输入
         // 无法区分 Magic Mouse, 因为其滚动特征与内置的 Trackpad 一致
