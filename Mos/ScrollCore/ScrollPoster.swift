@@ -117,7 +117,8 @@ extension ScrollPoster {
 //                CVDisplayLinkStart(validPoster)
 //            }
 //        }
-        ScrollPoster.shared.processing()
+        // 这里应该是个循环滚下去, 但是此处有bug, 会循环滚动, 所以暂时不管这里了
+        processing()
         NSLog("ScrollPoster-tryStart end...")
     }
     // 停止事件发送器

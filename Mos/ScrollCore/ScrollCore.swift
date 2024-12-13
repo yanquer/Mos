@@ -82,8 +82,10 @@ class ScrollCore {
         if ScrollUtils.shared.getLaunchpadActivity(withRunningApplication: targetRunningApplication) {
             enableSmooth = false
         }
+        
         // 滚动事件
         let scrollEvent = ScrollEvent(with: event)
+        
         // Y轴
         if scrollEvent.Y.valid {
             // 是否翻转滚动
@@ -117,18 +119,30 @@ class ScrollCore {
             }
         }
         
+        // 如果比最小步长小, 直接反转滚动
+        if scrollEvent.isCustomEvent(event: event, step: step){
+            NSLog("ScrollCore - scrollEventCallBack: isCustomEvent")
+            return Unmanaged.passUnretained(event)
+        }
+        
         ScrollCore.shared.serialQueue.sync{
             // 触发滚动事件推送
             if enableSmooth {
-                ScrollPoster.shared.update(
-                    event: event,
-                    proxy: proxy,
-                    duration: duration,
-                    y: scrollEvent.Y.usableValue,
-                    x: scrollEvent.X.usableValue,
-                    speed: speed,
-                    amplification: ScrollCore.shared.dashAmplification
-                ).tryStart()
+//                ScrollPoster.shared.update(
+//                    event: event,
+//                    proxy: proxy,
+//                    duration: duration,
+//                    y: scrollEvent.Y.usableValue,
+//                    x: scrollEvent.X.usableValue,
+//                    speed: speed,
+//                    amplification: ScrollCore.shared.dashAmplification
+//                )?.tryStart()
+                
+                // 匀速滚动
+                scrollEvent.srollSmooth(
+                    duration: duration, step: step, originEvent: event, proxy: proxy
+                )
+                
             }
         }
         

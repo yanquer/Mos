@@ -21,8 +21,7 @@ class ScrollFilter {
         //  暂时兼容处理:
         //  如果滚动方向与上次不一致, 取消惯性平滑
         if (
-            (lastY > 0 && nextValue.y < 0) ||
-            (lastY < 0 && nextValue.y > 0)
+            (lastY * nextValue.y) < 0
         ){
             NSLog("ScrollFilter-fill... reset window position")
             reset()
@@ -40,6 +39,7 @@ class ScrollFilter {
     }
     // 清空
     public func reset() {
+        NSLog("ScrollFilter-reset...")
         curveWindowY = [0.0, 0.0]
         curveWindowX = [0.0, 0.0]
     }

@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import CoreGraphics
 
 enum axisType {
     case Y
@@ -27,6 +28,9 @@ struct axisData {
 }
 
 class ScrollEvent {
+    
+    // 平滑
+    static let eventSource = CGEventSource(stateID: .privateState)
     
     // 滚动事件
     let event: CGEvent
@@ -156,4 +160,27 @@ extension ScrollEvent {
     }
     static let normalizeX = normalize(axis: axisType.X)
     static let normalizeY = normalize(axis: axisType.Y)
+}
+
+// MARK: - 平滑滚动实现 - 匀速滚动
+extension ScrollEvent {
+    
+    func isCustomEvent(event: CGEvent?, step: Double) -> Bool{
+        ScrollUniformEvent.shared.updateDest(x: X.usableValue, y: Y.usableValue)
+        return ScrollUniformEvent.shared.isCustomEvent(event: event, step: step)
+    }
+    
+    func srollSmooth(
+        duration: TimeInterval,
+        step: Double,
+        originEvent: CGEvent,
+        proxy: CGEventTapProxy
+    ) -> Void {
+        
+        ScrollUniformEvent.shared.updateDest(x: X.usableValue, y: Y.usableValue)
+        ScrollUniformEvent.shared.srollSmooth(duration: duration, step: step, originEvent: originEvent, proxy: proxy)
+        
+    }
+    
+    
 }

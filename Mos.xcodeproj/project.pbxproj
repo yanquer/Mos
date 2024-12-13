@@ -55,6 +55,7 @@
 		23BB4D3121D775D4009B51E9 /* EventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23BB4D3021D775D4009B51E9 /* EventMonitor.swift */; };
 		23E3C96D21DCE8F10098B107 /* StatusItemPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E3C96C21DCE8F10098B107 /* StatusItemPopoverView.swift */; };
 		23E9673F23613D1100E652F6 /* PreferencesExceptionInputViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E9673E23613D1100E652F6 /* PreferencesExceptionInputViewController.swift */; };
+		6D63774F2D0BCBBC00372F09 /* ScrollUniformEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D63774E2D0BCBB400372F09 /* ScrollUniformEvent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -127,6 +128,7 @@
 		23E9673E23613D1100E652F6 /* PreferencesExceptionInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesExceptionInputViewController.swift; sourceTree = "<group>"; };
 		6D63774C2D0A85C000372F09 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = SOURCE_ROOT; };
 		6D63774D2D0A860300372F09 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = SOURCE_ROOT; };
+		6D63774E2D0BCBB400372F09 /* ScrollUniformEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollUniformEvent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +151,7 @@
 				0B12EF1C203ADD230058B169 /* ScrollUtils.swift */,
 				0BE4C93A20617C6E0001EA0E /* ScrollFilter.swift */,
 				0B6D3B692041C348004CC064 /* ScrollEvent.swift */,
+				6D63774E2D0BCBB400372F09 /* ScrollUniformEvent.swift */,
 				0B474328258E12A200A5F8A3 /* ScrollPhase.swift */,
 				0B99C5FB2577FC9200021578 /* ScrollPoster.swift */,
 				0B12EF1E203ADFB10058B169 /* Interpolator.swift */,
@@ -453,6 +456,7 @@
 				0B12EF1A203AD9C80058B169 /* Options.swift in Sources */,
 				228093501E2B5DA90061A00F /* PreferencesGeneralViewController.swift in Sources */,
 				0B56DE402568DFDB00B4D9AE /* Archieve.swift in Sources */,
+				6D63774F2D0BCBBC00372F09 /* ScrollUniformEvent.swift in Sources */,
 				2278EE9D1E3DFAC8000AB25B /* ExceptionalApplication.swift in Sources */,
 				0BB0F1BE20F3A04F00909B7D /* WelcomeWindowController.swift in Sources */,
 				22142DA41E25344E00E4BFBF /* AppDelegate.swift in Sources */,
