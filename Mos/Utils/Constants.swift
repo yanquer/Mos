@@ -120,6 +120,27 @@ class OPTIONS_BUTTONS_DEFAULT: Codable {
 
 // 滚动
 class OPTIONS_SCROLL_DEFAULT: Codable {
+    enum CodingKeys: String, CodingKey {
+        case smooth
+        case reverse
+        case reverseVertical
+        case reverseHorizontal
+        case dash
+        case toggle
+        case block
+        case step
+        case speed
+        case duration
+        case deadZone
+        case smoothSimTrackpad
+        case smoothVertical
+        case smoothHorizontal
+        case durationBeforeSimTrackpadLock
+        case adaptivePrecision
+    }
+
+    init() {}
+
     var smooth = true {
         didSet {Options.shared.saveOptions()}
     }
@@ -168,6 +189,50 @@ class OPTIONS_SCROLL_DEFAULT: Codable {
     var durationBeforeSimTrackpadLock: Double? {
         didSet {Options.shared.saveOptions()}
     }
+    var adaptivePrecision = true {
+        didSet {Options.shared.saveOptions()}
+    }
+
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        smooth = try container.decodeIfPresent(Bool.self, forKey: .smooth) ?? true
+        reverse = try container.decodeIfPresent(Bool.self, forKey: .reverse) ?? true
+        reverseVertical = try container.decodeIfPresent(Bool.self, forKey: .reverseVertical) ?? true
+        reverseHorizontal = try container.decodeIfPresent(Bool.self, forKey: .reverseHorizontal) ?? true
+        dash = try container.decodeIfPresent(ScrollHotkey.self, forKey: .dash) ?? ScrollHotkey(type: .keyboard, code: KeyCode.optionL)
+        toggle = try container.decodeIfPresent(ScrollHotkey.self, forKey: .toggle) ?? ScrollHotkey(type: .keyboard, code: KeyCode.shiftL)
+        block = try container.decodeIfPresent(ScrollHotkey.self, forKey: .block) ?? ScrollHotkey(type: .keyboard, code: KeyCode.commandL)
+        step = try container.decodeIfPresent(Double.self, forKey: .step) ?? 33.6
+        speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? 2.70
+        duration = try container.decodeIfPresent(Double.self, forKey: .duration) ?? 4.35
+        deadZone = try container.decodeIfPresent(Double.self, forKey: .deadZone) ?? 1.00
+        smoothSimTrackpad = try container.decodeIfPresent(Bool.self, forKey: .smoothSimTrackpad) ?? false
+        smoothVertical = try container.decodeIfPresent(Bool.self, forKey: .smoothVertical) ?? true
+        smoothHorizontal = try container.decodeIfPresent(Bool.self, forKey: .smoothHorizontal) ?? true
+        durationBeforeSimTrackpadLock = try container.decodeIfPresent(Double.self, forKey: .durationBeforeSimTrackpadLock)
+        adaptivePrecision = try container.decodeIfPresent(Bool.self, forKey: .adaptivePrecision) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(smooth, forKey: .smooth)
+        try container.encode(reverse, forKey: .reverse)
+        try container.encode(reverseVertical, forKey: .reverseVertical)
+        try container.encode(reverseHorizontal, forKey: .reverseHorizontal)
+        try container.encodeIfPresent(dash, forKey: .dash)
+        try container.encodeIfPresent(toggle, forKey: .toggle)
+        try container.encodeIfPresent(block, forKey: .block)
+        try container.encode(step, forKey: .step)
+        try container.encode(speed, forKey: .speed)
+        try container.encode(duration, forKey: .duration)
+        try container.encode(deadZone, forKey: .deadZone)
+        try container.encode(smoothSimTrackpad, forKey: .smoothSimTrackpad)
+        try container.encode(smoothVertical, forKey: .smoothVertical)
+        try container.encode(smoothHorizontal, forKey: .smoothHorizontal)
+        try container.encodeIfPresent(durationBeforeSimTrackpadLock, forKey: .durationBeforeSimTrackpadLock)
+        try container.encode(adaptivePrecision, forKey: .adaptivePrecision)
+    }
+
     // 工具
     static func generateDurationTransition(with duration: Double) -> Double {
         // 上界, 此处需要与界面的 Slider 上界保持同步, 并添加 0.2 的偏移令结果不为 0
@@ -182,7 +247,7 @@ extension OPTIONS_SCROLL_DEFAULT: Equatable {
     static func == (l: OPTIONS_SCROLL_DEFAULT, r: OPTIONS_SCROLL_DEFAULT) -> Bool {
         return (
             l.smooth == r.smooth &&
-            l.reverse == r.smooth &&
+            l.reverse == r.reverse &&
             l.reverseVertical == r.reverseVertical &&
             l.reverseHorizontal == r.reverseHorizontal &&
             l.dash == r.dash &&
@@ -195,7 +260,8 @@ extension OPTIONS_SCROLL_DEFAULT: Equatable {
             l.smoothSimTrackpad == r.smoothSimTrackpad &&
             l.smoothVertical == r.smoothVertical &&
             l.smoothHorizontal == r.smoothHorizontal &&
-            l.durationBeforeSimTrackpadLock == r.durationBeforeSimTrackpadLock
+            l.durationBeforeSimTrackpadLock == r.durationBeforeSimTrackpadLock &&
+            l.adaptivePrecision == r.adaptivePrecision
         )
     }
 }

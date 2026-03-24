@@ -8686,6 +8686,18 @@
         }
       }
     },
+    "T96-mW-A8i.title" : {
+      "comment" : "Class = \"NSButtonCell\"; title = \"Adaptive Precision Scrolling\"; ObjectID = \"T96-mW-A8i\";",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Adaptive Precision Scrolling"
+          }
+        }
+      }
+    },
     "ThS-Rm-st2.title" : {
       "comment" : "Class = \"NSTextFieldCell\"; title = \"No application is Special\"; ObjectID = \"ThS-Rm-st2\";",
       "extractionState" : "extracted_with_value",

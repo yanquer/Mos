@@ -9,6 +9,33 @@
 import Cocoa
 import os
 
+struct ScrollSmoothingProfile {
+    static let defaultManualContinuationThreshold: CFTimeInterval = 0.18
+    static let defaultManualSeparationThreshold: CFTimeInterval = 0.45
+
+    let effectiveDurationTransition: Double
+    let effectiveSpeed: Double
+    let allowMomentum: Bool
+    let manualContinuationThreshold: CFTimeInterval
+    let manualSeparationThreshold: CFTimeInterval
+    let outputDeadZone: Double
+    let settlingDeadZone: Double
+    let bypassInterpolationFilter: Bool
+
+    static func legacy(durationTransition: Double, speed: Double) -> ScrollSmoothingProfile {
+        ScrollSmoothingProfile(
+            effectiveDurationTransition: durationTransition,
+            effectiveSpeed: speed,
+            allowMomentum: true,
+            manualContinuationThreshold: defaultManualContinuationThreshold,
+            manualSeparationThreshold: defaultManualSeparationThreshold,
+            outputDeadZone: Options.shared.scroll.deadZone,
+            settlingDeadZone: Options.shared.scroll.deadZone,
+            bypassInterpolationFilter: false
+        )
+    }
+}
+
 class ScrollPoster {
 
     // 单例
@@ -26,16 +53,16 @@ class ScrollPoster {
     // 滚动配置
     private var shifting = false
     private var duration = Options.shared.scroll.durationTransition
+    private var smoothingProfile = ScrollSmoothingProfile.legacy(
+        durationTransition: Options.shared.scroll.durationTransition,
+        speed: Options.shared.scroll.speed
+    )
     // 输入节奏追踪
     private var lastManualEventTime: CFTimeInterval = 0.0
     private var manualInputEnded = true
     private var momentumActive = false
     private var momentumEndScheduledTime: CFTimeInterval? = nil
     private var trackingEndScheduledTime: CFTimeInterval? = nil
-    // 阈值: 鼠标滚轮事件间隔低于 continuationThreshold 视为持续跟随
-    //      介于 continuationThreshold 与 separationThreshold 之间模拟惯性衔接
-    private let manualContinuationThreshold: CFTimeInterval = 0.18
-    private let manualSeparationThreshold: CFTimeInterval = 0.45
     private let trackingEndAdvance: CFTimeInterval = 0.04
     private let momentumEndDelay: CFTimeInterval = 0.13
     // 状态锁和投递上下文
@@ -45,31 +72,35 @@ class ScrollPoster {
 
 // MARK: - 滚动数据更新控制
 extension ScrollPoster {
-    func update(event: CGEvent, duration: Double, y: Double, x: Double, speed: Double, amplification: Double = 1) -> Self {
+    func update(event: CGEvent, y: Double, x: Double, smoothingProfile: ScrollSmoothingProfile, amplification: Double = 1) -> Self {
         guard dispatchContext.capture(event: event) else {
             return self
         }
         os_unfair_lock_lock(&stateLock)
         defer { os_unfair_lock_unlock(&stateLock) }
         // 更新滚动配置
-        self.duration = duration
+        self.smoothingProfile = smoothingProfile
+        self.duration = smoothingProfile.effectiveDurationTransition
+        if smoothingProfile.bypassInterpolationFilter {
+            filter.reset()
+        }
         // 更新滚动数据
         if y*delta.y > 0 {
-            buffer.y += y * speed * amplification
+            buffer.y += y * smoothingProfile.effectiveSpeed * amplification
         } else {
-            buffer.y = y * speed * amplification
+            buffer.y = y * smoothingProfile.effectiveSpeed * amplification
             current.y = 0.0
         }
         if x*delta.x > 0 {
-            buffer.x += x * speed * amplification
+            buffer.x += x * smoothingProfile.effectiveSpeed * amplification
         } else {
-            buffer.x = x * speed * amplification
+            buffer.x = x * smoothingProfile.effectiveSpeed * amplification
             current.x = 0.0
         }
         delta = (y: y, x: x)
         let now = CFAbsoluteTimeGetCurrent()
         let interval = lastManualEventTime > 0.0 ? now - lastManualEventTime : nil
-        let separatedByTime = interval == nil ? true : interval! >= manualSeparationThreshold
+        let separatedByTime = interval == nil ? true : interval! >= smoothingProfile.manualSeparationThreshold
         let phase = ScrollPhase.shared.phase
         let separatedPhase = (phase == .Idle || phase == .Leave || phase == .MomentumEnd || phase == .TrackingEnd)
         let separated = manualInputEnded || separatedByTime || separatedPhase
@@ -136,6 +167,12 @@ extension ScrollPoster {
         // 重置插值器
         filter.reset()
         ScrollPhase.shared.reset()
+        let defaultProfile = ScrollSmoothingProfile.legacy(
+            durationTransition: Options.shared.scroll.durationTransition,
+            speed: Options.shared.scroll.speed
+        )
+        smoothingProfile = defaultProfile
+        duration = defaultProfile.effectiveDurationTransition
         manualInputEnded = true
         momentumActive = false
         lastManualEventTime = 0.0
@@ -263,12 +300,12 @@ private extension ScrollPoster {
             x: current.x + frame.x
         )
         // 平滑滚动结果
-        let filledValue = filter.fill(with: frame)
+        let filledValue = smoothingProfile.bypassInterpolationFilter ? frame : filter.fill(with: frame)
         // 变换滚动结果，将滤波后的插值映射到当前姿态（考虑灵敏度、方向等因素）
         let shiftedValue = shift(with: filledValue)
         let now = CFAbsoluteTimeGetCurrent()
         // 检测是否已经超过手动输入的持续时间阈值，准备结束手动阶段
-        if !manualInputEnded && lastManualEventTime > 0.0 && now - lastManualEventTime > manualContinuationThreshold {
+        if !manualInputEnded && lastManualEventTime > 0.0 && now - lastManualEventTime > smoothingProfile.manualContinuationThreshold {
             let endPlan = ScrollPhase.shared.onManualInputEnded()
             if !(endPlan.queue.isEmpty && endPlan.target == nil) {
                 perform(endPlan, emitTargetImmediately: true)
@@ -282,8 +319,9 @@ private extension ScrollPoster {
         let residualY = buffer.y - current.y
         let residualX = buffer.x - current.x
         let residualMagnitude = max(residualY.magnitude, residualX.magnitude)
-        let deadZone = Options.shared.scroll.deadZone
-        if manualInputEnded && residualMagnitude > deadZone {
+        let settlingDeadZone = smoothingProfile.settlingDeadZone
+        let outputDeadZone = smoothingProfile.outputDeadZone
+        if manualInputEnded && residualMagnitude > settlingDeadZone && smoothingProfile.allowMomentum {
             if !momentumActive {
                 perform(ScrollPhase.shared.onMomentumStart(), emitTargetImmediately: false)
                 momentumActive = true
@@ -292,7 +330,12 @@ private extension ScrollPoster {
             }
             momentumEndScheduledTime = nil
             trackingEndScheduledTime = nil
-        } else if momentumActive && residualMagnitude <= deadZone {
+        } else if manualInputEnded && residualMagnitude > settlingDeadZone {
+            momentumEndScheduledTime = nil
+            if momentumActive {
+                momentumActive = false
+            }
+        } else if momentumActive && residualMagnitude <= settlingDeadZone {
             if momentumEndScheduledTime == nil {
                 momentumEndScheduledTime = now + momentumEndDelay
             }
@@ -304,7 +347,7 @@ private extension ScrollPoster {
         }
         // 发送滚动结果 - 只有当输出值超过死区阈值时才发送
         let outputMagnitude = max(abs(shiftedValue.y), abs(shiftedValue.x))
-        if outputMagnitude > deadZone {
+        if outputMagnitude > outputDeadZone {
             _ = post(shiftedValue)
         }
 
@@ -315,9 +358,9 @@ private extension ScrollPoster {
                 pendingStopPhase = .MomentumEnd
             }
         }
-        if pendingStopPhase == nil && manualInputEnded && !momentumActive && residualMagnitude <= deadZone {
+        if pendingStopPhase == nil && manualInputEnded && !momentumActive && residualMagnitude <= settlingDeadZone {
             let pendingStop = trackingEndScheduledTime != nil && now >= trackingEndScheduledTime!
-            let outputSettled = outputMagnitude <= deadZone
+            let outputSettled = outputMagnitude <= outputDeadZone
             if pendingStop && outputSettled {
                 trackingEndScheduledTime = nil
                 pendingStopPhase = .TrackingEnd
@@ -347,6 +390,15 @@ private extension ScrollPoster {
         return (scroll: scrollValue, momentum: momentumValue)
     }
 
+    func roundedLegacyDelta(from value: Double) -> Int64 {
+        let magnitude = abs(value)
+        guard magnitude > 0.0 else {
+            return 0
+        }
+        let roundedMagnitude = magnitude > 1.0 ? floor(magnitude) : 1.0
+        return value > 0.0 ? Int64(roundedMagnitude) : -Int64(roundedMagnitude)
+    }
+
     @discardableResult
     func post(_ snapshot: ScrollDispatchContext.PostingSnapshot, _ v: (y: Double, x: Double), phaseOverride: (scroll: Double, momentum: Double)? = nil, fallbackToCurrentPhase: Bool = true) -> Bool {
         if let override = phaseOverride {
@@ -358,8 +410,12 @@ private extension ScrollPoster {
             snapshot.event.setDoubleValueField(.scrollWheelEventScrollPhase, value: currentPhaseValues.scroll)
             snapshot.event.setDoubleValueField(.scrollWheelEventMomentumPhase, value: currentPhaseValues.momentum)
         }
+        snapshot.event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: roundedLegacyDelta(from: v.y))
+        snapshot.event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: roundedLegacyDelta(from: v.x))
         snapshot.event.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: v.y)
         snapshot.event.setDoubleValueField(.scrollWheelEventPointDeltaAxis2, value: v.x)
+        snapshot.event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: v.y)
+        snapshot.event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: v.x)
         // 是否连续滚动: 始终为 1.0
         snapshot.event.setDoubleValueField(.scrollWheelEventIsContinuous, value: 1.0)
         ScrollUtils.shared.markSyntheticSmoothEvent(snapshot.event)

@@ -4,10 +4,15 @@ class ScrollSmoothDetailSettingsPopoverViewController: AdaptivePopover, ScrollOp
 
     @IBOutlet weak var verticalSmoothCheckBox: NSButton?
     @IBOutlet weak var horizontalSmoothCheckBox: NSButton?
+    @IBOutlet weak var adaptivePrecisionCheckBox: NSButton?
     @IBOutlet weak var simulateTrackpadCheckBox: NSButton?
 
     var currentTargetApplication: Application?
     var onOptionsChanged: (() -> Void)?
+    private let adaptivePrecisionTitle = NSLocalizedString(
+        "adaptivePrecisionScrollingTitle",
+        comment: "Title for adaptive precision scrolling setting"
+    )
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -32,6 +37,12 @@ class ScrollSmoothDetailSettingsPopoverViewController: AdaptivePopover, ScrollOp
 
     @IBAction func horizontalSmoothToggle(_ sender: NSButton) {
         getTargetApplicationScrollOptions().smoothHorizontal = sender.state == .on
+        syncViewWithOptions()
+        onOptionsChanged?()
+    }
+
+    @IBAction func adaptivePrecisionToggle(_ sender: NSButton) {
+        getTargetApplicationScrollOptions().adaptivePrecision = sender.state == .on
         syncViewWithOptions()
         onOptionsChanged?()
     }
@@ -63,5 +74,7 @@ class ScrollSmoothDetailSettingsPopoverViewController: AdaptivePopover, ScrollOp
         let scroll = getTargetApplicationScrollOptions()
         updateSmoothDependentControl(verticalSmoothCheckBox, isOn: scroll.smoothVertical)
         updateSmoothDependentControl(horizontalSmoothCheckBox, isOn: scroll.smoothHorizontal)
+        adaptivePrecisionCheckBox?.title = adaptivePrecisionTitle
+        updateAdaptivePrecisionControl(adaptivePrecisionCheckBox)
     }
 }

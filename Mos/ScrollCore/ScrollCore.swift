@@ -8,6 +8,93 @@
 
 import Cocoa
 
+private enum AdaptiveScrollCadence {
+    case precision
+    case normal
+    case burst
+}
+
+private enum AdaptiveScrollAxis {
+    case vertical
+    case horizontal
+}
+
+private struct AdaptiveCadenceEvaluation {
+    let cadence: AdaptiveScrollCadence
+    let rapidCount: Int
+}
+
+private final class WheelCadenceTracker {
+    private let rapidSequenceThreshold: CFTimeInterval = 0.16
+    private let burstThreshold: CFTimeInterval = 0.055
+    private let precisionThreshold: CFTimeInterval = 0.11
+
+    private var lastEventTime: CFTimeInterval = 0.0
+    private var lastDirection: Double = 0.0
+    private var lastAxis: AdaptiveScrollAxis?
+    private var lastTargetPID: pid_t = 0
+    private var rapidCount = 0
+
+    func reset() {
+        lastEventTime = 0.0
+        lastDirection = 0.0
+        lastAxis = nil
+        lastTargetPID = 0
+        rapidCount = 0
+    }
+
+    func evaluate(y: Double, x: Double, event: CGEvent) -> AdaptiveCadenceEvaluation {
+        let magnitudeY = abs(y)
+        let magnitudeX = abs(x)
+        guard magnitudeY > 0.0 || magnitudeX > 0.0 else {
+            reset()
+            return AdaptiveCadenceEvaluation(cadence: .normal, rapidCount: 0)
+        }
+
+        let axis: AdaptiveScrollAxis = magnitudeY >= magnitudeX ? .vertical : .horizontal
+        let dominantValue = axis == .vertical ? y : x
+        let direction = dominantValue > 0.0 ? 1.0 : -1.0
+        let targetPID = pid_t(event.getIntegerValueField(.eventTargetUnixProcessID))
+        let now = CFAbsoluteTimeGetCurrent()
+        let interval = lastEventTime > 0.0 ? now - lastEventTime : nil
+
+        let sameAxis = lastAxis == axis
+        let sameDirection = direction * lastDirection > 0.0
+        let sameTarget = targetPID != 0 && targetPID == lastTargetPID
+        let rapidSequence = interval != nil && interval! <= rapidSequenceThreshold && sameAxis && sameDirection && sameTarget
+
+        if rapidSequence {
+            rapidCount += 1
+        } else {
+            rapidCount = 1
+        }
+
+        let scrollCount = event.getDoubleValueField(.scrollWheelEventScrollCount)
+        let cadence: AdaptiveScrollCadence
+        if scrollCount > 0.0 ||
+            (interval != nil && interval! <= burstThreshold && sameAxis && sameDirection && sameTarget) ||
+            (rapidSequence && rapidCount >= 3) {
+            cadence = .burst
+        } else if interval == nil ||
+                    !sameAxis ||
+                    !sameDirection ||
+                    !sameTarget ||
+                    interval! >= rapidSequenceThreshold ||
+                    (interval! >= precisionThreshold && scrollCount == 0.0) {
+            cadence = .precision
+        } else {
+            cadence = .normal
+        }
+
+        lastEventTime = now
+        lastDirection = direction
+        lastAxis = axis
+        lastTargetPID = targetPID
+
+        return AdaptiveCadenceEvaluation(cadence: cadence, rapidCount: rapidCount)
+    }
+}
+
 class ScrollCore {
     
     // 单例
@@ -30,6 +117,7 @@ class ScrollCore {
     // 例外应用数据
     var application: Application?
     var currentApplication: Application? // 用于区分按下热键及抬起时的作用目标
+    private let wheelCadenceTracker = WheelCadenceTracker()
     // 拦截层
     var scrollEventInterceptor: Interceptor?
     var hotkeyEventInterceptor: Interceptor?
@@ -51,6 +139,7 @@ class ScrollCore {
         _ = refcon
         // Tap 被系统禁用或重启边界时，强制清理 poster 上下文并失效历史异步帧
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            ScrollCore.shared.resetAdaptiveCadence()
             ScrollPoster.shared.stop(.TrackingEnd)
             return Unmanaged.passUnretained(event)
         }
@@ -87,7 +176,9 @@ class ScrollCore {
             enableReverseHorizontal = false
         var step = Options.shared.scroll.step,
             speed = Options.shared.scroll.speed,
-            duration = Options.shared.scroll.durationTransition
+            durationValue = Options.shared.scroll.duration,
+            durationTransition = Options.shared.scroll.durationTransition,
+            adaptivePrecision = Options.shared.scroll.adaptivePrecision
         if let targetApplication = ScrollCore.shared.application {
             enableSmooth = targetApplication.isSmooth(ScrollCore.shared.blockSmooth)
             enableSmoothVertical = targetApplication.isSmoothVertical(ScrollCore.shared.blockSmooth)
@@ -96,7 +187,9 @@ class ScrollCore {
             enableReverseHorizontal = targetApplication.isReverseHorizontal()
             step = targetApplication.getStep()
             speed = targetApplication.getSpeed()
-            duration = targetApplication.getDuration()
+            durationValue = targetApplication.getDurationValue()
+            durationTransition = targetApplication.getDuration()
+            adaptivePrecision = targetApplication.getAdaptivePrecision()
         } else if !Options.shared.application.allowlist {
             enableSmooth = Options.shared.scroll.smooth && !ScrollCore.shared.blockSmooth
             enableSmoothVertical = enableSmooth && Options.shared.scroll.smoothVertical
@@ -104,6 +197,7 @@ class ScrollCore {
             let allowReverse = Options.shared.scroll.reverse
             enableReverseVertical = allowReverse && Options.shared.scroll.reverseVertical
             enableReverseHorizontal = allowReverse && Options.shared.scroll.reverseHorizontal
+            adaptivePrecision = Options.shared.scroll.adaptivePrecision
         }
         // Launchpad 激活则强制屏蔽平滑
         if ScrollUtils.shared.getLaunchpadActivity(withRunningApplication: targetRunningApplication) {
@@ -133,20 +227,59 @@ class ScrollCore {
             shouldSmoothHorizontal = false
         }
 
+        let rawSmoothedY = shouldSmoothVertical ? scrollEvent.Y.usableValue : 0.0
+        let rawSmoothedX = shouldSmoothHorizontal ? scrollEvent.X.usableValue : 0.0
         var smoothedY = 0.0
         var smoothedX = 0.0
+        var smoothingProfile = ScrollCore.shared.legacySmoothingProfile(
+            speed: speed,
+            durationTransition: durationTransition
+        )
 
-        if shouldSmoothVertical {
-            if scrollEvent.Y.usableValue.magnitude < step {
-                ScrollEvent.normalizeY(scrollEvent, step)
+        if shouldSmoothVertical || shouldSmoothHorizontal {
+            if adaptivePrecision {
+                let evaluation = ScrollCore.shared.wheelCadenceTracker.evaluate(
+                    y: rawSmoothedY,
+                    x: rawSmoothedX,
+                    event: event
+                )
+                smoothingProfile = ScrollCore.shared.adaptiveSmoothingProfile(
+                    for: evaluation,
+                    baseSpeed: speed,
+                    baseDurationValue: durationValue,
+                    baseDurationTransition: durationTransition
+                )
+                if shouldSmoothVertical {
+                    smoothedY = ScrollCore.shared.adaptiveMagnitude(
+                        for: rawSmoothedY,
+                        step: step,
+                        cadence: evaluation.cadence
+                    )
+                }
+                if shouldSmoothHorizontal {
+                    smoothedX = ScrollCore.shared.adaptiveMagnitude(
+                        for: rawSmoothedX,
+                        step: step,
+                        cadence: evaluation.cadence
+                    )
+                }
+            } else {
+                ScrollCore.shared.resetAdaptiveCadence()
+                if shouldSmoothVertical {
+                    if scrollEvent.Y.usableValue.magnitude < step {
+                        ScrollEvent.normalizeY(scrollEvent, step)
+                    }
+                    smoothedY = scrollEvent.Y.usableValue
+                }
+                if shouldSmoothHorizontal {
+                    if scrollEvent.X.usableValue.magnitude < step {
+                        ScrollEvent.normalizeX(scrollEvent, step)
+                    }
+                    smoothedX = scrollEvent.X.usableValue
+                }
             }
-            smoothedY = scrollEvent.Y.usableValue
-        }
-        if shouldSmoothHorizontal {
-            if scrollEvent.X.usableValue.magnitude < step {
-                ScrollEvent.normalizeX(scrollEvent, step)
-            }
-            smoothedX = scrollEvent.X.usableValue
+        } else {
+            ScrollCore.shared.resetAdaptiveCadence()
         }
 
         let needVerticalPassthrough = hasVerticalDelta && !shouldSmoothVertical
@@ -157,10 +290,9 @@ class ScrollCore {
         if shouldSmoothAny {
             ScrollPoster.shared.update(
                 event: event,
-                duration: duration,
                 y: smoothedY,
                 x: smoothedX,
-                speed: speed,
+                smoothingProfile: smoothingProfile,
                 amplification: ScrollCore.shared.dashAmplification
             ).tryStart()
         }
@@ -312,6 +444,7 @@ class ScrollCore {
     // MARK: - 鼠标事件处理
     let mouseLeftEventCallBack: CGEventTapCallBack = { (proxy, type, event, refcon) in
         // 如果点击左键则停止滚动
+        ScrollCore.shared.resetAdaptiveCadence()
         ScrollPoster.shared.stop()
         return nil
     }
@@ -357,10 +490,72 @@ class ScrollCore {
         if !isActive {return}
         isActive = false
         // 停止滚动事件发送器
+        resetAdaptiveCadence()
         ScrollPoster.shared.stop()
         // 停止截取事件
         scrollEventInterceptor?.stop()
         hotkeyEventInterceptor?.stop()
         mouseEventInterceptor?.stop()
+    }
+}
+
+private extension ScrollCore {
+    func resetAdaptiveCadence() {
+        wheelCadenceTracker.reset()
+    }
+
+    func legacySmoothingProfile(speed: Double, durationTransition: Double) -> ScrollSmoothingProfile {
+        ScrollSmoothingProfile.legacy(durationTransition: durationTransition, speed: speed)
+    }
+
+    func adaptiveMagnitude(for rawValue: Double, step: Double, cadence: AdaptiveScrollCadence) -> Double {
+        let magnitude = abs(rawValue)
+        let adjustedMagnitude: Double
+        switch cadence {
+        case .precision:
+            // Precision needs a small but still visible floor; pure raw wheel values are often too tiny.
+            adjustedMagnitude = min(max(magnitude, step * 0.20), step * 0.35)
+        case .normal:
+            adjustedMagnitude = max(magnitude, step * 0.55)
+        case .burst:
+            adjustedMagnitude = max(magnitude, step)
+        }
+        return rawValue >= 0.0 ? adjustedMagnitude : -adjustedMagnitude
+    }
+
+    func adaptiveSmoothingProfile(
+        for evaluation: AdaptiveCadenceEvaluation,
+        baseSpeed: Double,
+        baseDurationValue: Double,
+        baseDurationTransition: Double
+    ) -> ScrollSmoothingProfile {
+        switch evaluation.cadence {
+        case .precision:
+            let precisionDurationValue = max(1.0, min(1.6, baseDurationValue * 0.35))
+            return ScrollSmoothingProfile(
+                effectiveDurationTransition: OPTIONS_SCROLL_DEFAULT.generateDurationTransition(with: precisionDurationValue),
+                effectiveSpeed: baseSpeed * 0.55,
+                allowMomentum: false,
+                manualContinuationThreshold: 0.08,
+                manualSeparationThreshold: 0.16,
+                outputDeadZone: 0.01,
+                settlingDeadZone: 0.05,
+                bypassInterpolationFilter: true
+            )
+        case .normal:
+            return legacySmoothingProfile(speed: baseSpeed, durationTransition: baseDurationTransition)
+        case .burst:
+            let burstMultiplier = 1.0 + min(0.45, 0.12 * Double(evaluation.rapidCount))
+            return ScrollSmoothingProfile(
+                effectiveDurationTransition: baseDurationTransition,
+                effectiveSpeed: baseSpeed * burstMultiplier,
+                allowMomentum: true,
+                manualContinuationThreshold: ScrollSmoothingProfile.defaultManualContinuationThreshold,
+                manualSeparationThreshold: ScrollSmoothingProfile.defaultManualSeparationThreshold,
+                outputDeadZone: Options.shared.scroll.deadZone,
+                settlingDeadZone: Options.shared.scroll.deadZone,
+                bypassInterpolationFilter: false
+            )
+        }
     }
 }

@@ -43,6 +43,11 @@ extension ScrollOptionsContextProviding {
         updateSmoothDependentControl(control, isOn: scroll.smoothSimTrackpad)
     }
 
+    func updateAdaptivePrecisionControl(_ control: NSButton?) {
+        let scroll = getTargetApplicationScrollOptions()
+        updateSmoothDependentControl(control, isOn: scroll.adaptivePrecision)
+    }
+
     func updateReverseDependentControl(_ control: NSButton?, isOn: Bool) {
         let isNotInherit = !isTargetApplicationInheritOptions()
         let scroll = getTargetApplicationScrollOptions()

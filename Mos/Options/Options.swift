@@ -36,6 +36,7 @@ struct OptionItem {
         static let SmoothSimTrackpad = "smoothSimTrackpad"
         static let SmoothVertical = "smoothVertical"
         static let SmoothHorizontal = "smoothHorizontal"
+        static let AdaptivePrecision = "adaptivePrecision"
     }
 
     struct Button {
@@ -130,6 +131,11 @@ extension Options {
         } else {
             scroll.smoothHorizontal = UserDefaults.standard.bool(forKey: OptionItem.Scroll.SmoothHorizontal)
         }
+        if UserDefaults.standard.object(forKey: OptionItem.Scroll.AdaptivePrecision) == nil {
+            scroll.adaptivePrecision = true
+        } else {
+            scroll.adaptivePrecision = UserDefaults.standard.bool(forKey: OptionItem.Scroll.AdaptivePrecision)
+        }
         // 按钮绑定
         buttons.binding = loadButtonsData()
         // 应用
@@ -164,6 +170,7 @@ extension Options {
             UserDefaults.standard.set(scroll.smoothSimTrackpad, forKey: OptionItem.Scroll.SmoothSimTrackpad)
             UserDefaults.standard.set(scroll.smoothVertical, forKey: OptionItem.Scroll.SmoothVertical)
             UserDefaults.standard.set(scroll.smoothHorizontal, forKey: OptionItem.Scroll.SmoothHorizontal)
+            UserDefaults.standard.set(scroll.adaptivePrecision, forKey: OptionItem.Scroll.AdaptivePrecision)
             // 应用
             UserDefaults.standard.set(application.allowlist, forKey: OptionItem.Application.Allowlist)
             if let applicationsData = application.applications.json() {

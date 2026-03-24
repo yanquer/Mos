@@ -75,8 +75,14 @@ extension Application {
     func getSpeed() -> Double {
         return inherit ? Options.shared.scroll.speed : scroll.speed
     }
+    func getDurationValue() -> Double {
+        return inherit ? Options.shared.scroll.duration : scroll.duration
+    }
     func getDuration() -> Double {
         return inherit ? Options.shared.scroll.durationTransition : scroll.durationTransition
+    }
+    func getAdaptivePrecision() -> Bool {
+        return inherit ? Options.shared.scroll.adaptivePrecision : scroll.adaptivePrecision
     }
     // 功能
     func isSmooth(_ block: Bool) -> Bool {

@@ -1601,11 +1601,11 @@
             <objects>
                 <viewController id="6NY-mX-uto" customClass="ScrollSmoothDetailSettingsPopoverViewController" customModule="Mos" customModuleProvider="target" sceneMemberID="viewController">
                     <view key="view" id="Ii6-1I-pb4">
-                        <rect key="frame" x="0.0" y="0.0" width="215" height="118"/>
+                        <rect key="frame" x="0.0" y="0.0" width="215" height="142"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="xHE-gD-zSo">
-                                <rect key="frame" x="20" y="84" width="175" height="14"/>
+                                <rect key="frame" x="20" y="108" width="175" height="14"/>
                                 <buttonCell key="cell" type="check" title="Vertical Smooth" bezelStyle="regularSquare" imagePosition="left" controlSize="small" state="on" inset="2" id="GtT-zh-x8d">
                                     <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                     <font key="font" metaFont="smallSystem"/>
@@ -1615,13 +1615,23 @@
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="k59-to-Z4j">
-                                <rect key="frame" x="20" y="60" width="175" height="14"/>
+                                <rect key="frame" x="20" y="84" width="175" height="14"/>
                                 <buttonCell key="cell" type="check" title="Horizontal Smooth" bezelStyle="regularSquare" imagePosition="left" controlSize="small" state="on" inset="2" id="Nh1-iw-yGN">
                                     <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                     <font key="font" metaFont="smallSystem"/>
                                 </buttonCell>
                                 <connections>
                                     <action selector="horizontalSmoothToggle:" target="6NY-mX-uto" id="XJ8-cd-9ho"/>
+                                </connections>
+                            </button>
+                            <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="S2b-cN-qfP">
+                                <rect key="frame" x="20" y="60" width="175" height="14"/>
+                                <buttonCell key="cell" type="check" title="Adaptive Precision Scrolling" bezelStyle="regularSquare" imagePosition="left" controlSize="small" state="on" inset="2" id="T96-mW-A8i">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="smallSystem"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="adaptivePrecisionToggle:" target="6NY-mX-uto" id="vV0-X7-N3D"/>
                                 </connections>
                             </button>
                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Yww-b9-vE7">
@@ -1644,14 +1654,17 @@
                             </textField>
                         </subviews>
                         <constraints>
-                            <constraint firstItem="Yww-b9-vE7" firstAttribute="top" secondItem="k59-to-Z4j" secondAttribute="bottom" constant="10" id="1Df-VR-P0o"/>
-                            <constraint firstItem="Yww-b9-vE7" firstAttribute="trailing" secondItem="xHE-gD-zSo" secondAttribute="trailing" id="2rK-qE-Mwl"/>
+                            <constraint firstItem="S2b-cN-qfP" firstAttribute="top" secondItem="k59-to-Z4j" secondAttribute="bottom" constant="10" id="0mH-uq-IAr"/>
+                            <constraint firstItem="Yww-b9-vE7" firstAttribute="top" secondItem="S2b-cN-qfP" secondAttribute="bottom" constant="10" id="1Df-VR-P0o"/>
+                            <constraint firstItem="Yww-b9-vE7" firstAttribute="trailing" secondItem="S2b-cN-qfP" secondAttribute="trailing" id="2rK-qE-Mwl"/>
                             <constraint firstItem="k59-to-Z4j" firstAttribute="leading" secondItem="xHE-gD-zSo" secondAttribute="leading" id="4KB-Hs-tVK"/>
                             <constraint firstAttribute="trailing" secondItem="xHE-gD-zSo" secondAttribute="trailing" constant="20" symbolic="YES" id="4bD-Ld-Xdx"/>
+                            <constraint firstItem="S2b-cN-qfP" firstAttribute="leading" secondItem="xHE-gD-zSo" secondAttribute="leading" id="5wc-VF-I1r"/>
                             <constraint firstItem="T2A-GP-RAS" firstAttribute="leading" secondItem="Yww-b9-vE7" secondAttribute="leading" constant="19" id="7JZ-0X-goA"/>
                             <constraint firstItem="xHE-gD-zSo" firstAttribute="top" secondItem="Ii6-1I-pb4" secondAttribute="top" constant="20" symbolic="YES" id="EEv-wf-TaC"/>
                             <constraint firstItem="Yww-b9-vE7" firstAttribute="leading" secondItem="xHE-gD-zSo" secondAttribute="leading" id="M1T-ng-xhj"/>
                             <constraint firstItem="k59-to-Z4j" firstAttribute="trailing" secondItem="xHE-gD-zSo" secondAttribute="trailing" id="N99-DU-Lrz"/>
+                            <constraint firstItem="S2b-cN-qfP" firstAttribute="trailing" secondItem="xHE-gD-zSo" secondAttribute="trailing" id="Qtt-Ui-uLh"/>
                             <constraint firstItem="T2A-GP-RAS" firstAttribute="trailing" secondItem="Yww-b9-vE7" secondAttribute="trailing" id="VeS-ix-CF2"/>
                             <constraint firstItem="k59-to-Z4j" firstAttribute="top" secondItem="xHE-gD-zSo" secondAttribute="bottom" constant="10" id="iBr-mq-zbi"/>
                             <constraint firstAttribute="bottom" secondItem="T2A-GP-RAS" secondAttribute="bottom" constant="20" symbolic="YES" id="oMp-uu-4Di"/>
@@ -1660,6 +1673,7 @@
                         </constraints>
                     </view>
                     <connections>
+                        <outlet property="adaptivePrecisionCheckBox" destination="S2b-cN-qfP" id="43N-dA-Ytg"/>
                         <outlet property="horizontalSmoothCheckBox" destination="k59-to-Z4j" id="h4G-3M-qMA"/>
                         <outlet property="simulateTrackpadCheckBox" destination="Yww-b9-vE7" id="K2i-qm-Qml"/>
                         <outlet property="verticalSmoothCheckBox" destination="xHE-gD-zSo" id="kA0-Us-rIW"/>
