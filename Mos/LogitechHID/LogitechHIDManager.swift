@@ -22,18 +22,19 @@ class LogitechHIDManager {
     private var hidManager: IOHIDManager?
     private var sessions: [IOHIDDevice: LogitechDeviceSession] = [:]
     private(set) var isActive = false
+    var isHealthy: Bool { isActive && hidManager != nil }
 
     // MARK: - Lifecycle
 
     func start() {
-        guard !isActive else { return }
+        if isHealthy { return }
+        if hidManager != nil || isActive || !sessions.isEmpty {
+            LogitechHIDDebugPanel.log("[LogitechHID] Recycling stale state before start")
+            stop()
+        }
         LogitechHIDDebugPanel.log("[LogitechHID] Starting")
 
-        hidManager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        guard let manager = hidManager else {
-            LogitechHIDDebugPanel.log("[LogitechHID] Failed to create IOHIDManager")
-            return
-        }
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
         // 只匹配 Logitech 设备
         let matchDict: [String: Any] = [
@@ -52,15 +53,18 @@ class LogitechHIDManager {
         let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         if result != kIOReturnSuccess {
             LogitechHIDDebugPanel.log("[LogitechHID] Failed to open IOHIDManager: \(String(format: "0x%08x", result))")
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
             return
         }
 
+        hidManager = manager
         isActive = true
         LogitechHIDDebugPanel.log("[LogitechHID] Started")
     }
 
     func stop() {
-        guard isActive else { return }
+        guard isActive || hidManager != nil || !sessions.isEmpty else { return }
         LogitechHIDDebugPanel.log("[LogitechHID] Stopping")
 
         // 清理所有设备会话

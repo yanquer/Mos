@@ -24,6 +24,10 @@ private struct AdaptiveCadenceEvaluation {
     let rapidCount: Int
 }
 
+private enum ScrollCoreLifecycleError: Error {
+    case posterCreationFailed
+}
+
 private final class WheelCadenceTracker {
     private let rapidSequenceThreshold: CFTimeInterval = 0.16
     private let burstThreshold: CFTimeInterval = 0.055
@@ -122,6 +126,18 @@ class ScrollCore {
     var scrollEventInterceptor: Interceptor?
     var hotkeyEventInterceptor: Interceptor?
     var mouseEventInterceptor: Interceptor?
+    var isHealthy: Bool {
+        guard isActive,
+              let scrollEventInterceptor = scrollEventInterceptor,
+              let hotkeyEventInterceptor = hotkeyEventInterceptor,
+              let mouseEventInterceptor = mouseEventInterceptor else {
+            return false
+        }
+        return scrollEventInterceptor.isRunning()
+            && hotkeyEventInterceptor.isRunning()
+            && mouseEventInterceptor.isRunning()
+            && ScrollPoster.shared.isReady
+    }
     // 拦截掩码
     let scrollEventMask = CGEventMask(1 << CGEventType.scrollWheel.rawValue)
     let hotkeyEventMask: CGEventMask = {
@@ -452,54 +468,102 @@ class ScrollCore {
     // MARK: - 事件运行管理
     // 启动
     func enable() {
-        // Guard
-        if isActive { return }
-        isActive = true
-        // 启动事件拦截层
+        if isHealthy { return }
+        if isActive || scrollEventInterceptor != nil || hotkeyEventInterceptor != nil || mouseEventInterceptor != nil || ScrollPoster.shared.isReady {
+            NSLog("[ScrollCore] Recycling stale state before enable")
+            disable()
+        }
+
+        var pendingScrollEventInterceptor: Interceptor?
+        var pendingHotkeyEventInterceptor: Interceptor?
+        var pendingMouseEventInterceptor: Interceptor?
         do {
-            scrollEventInterceptor = try Interceptor(
+            pendingScrollEventInterceptor = try Interceptor(
                 event: scrollEventMask,
                 handleBy: scrollEventCallBack,
                 listenOn: .cgAnnotatedSessionEventTap,
                 placeAt: .tailAppendEventTap,
                 for: .defaultTap
             )
-            hotkeyEventInterceptor = try Interceptor(
+            pendingHotkeyEventInterceptor = try Interceptor(
                 event: hotkeyEventMask,
                 handleBy: hotkeyEventCallBack,
                 listenOn: .cgAnnotatedSessionEventTap,
                 placeAt: .tailAppendEventTap,
                 for: .listenOnly
             )
-            mouseEventInterceptor = try Interceptor(
+            pendingMouseEventInterceptor = try Interceptor(
                 event: mouseLeftEventMask,
                 handleBy: mouseLeftEventCallBack,
                 listenOn: .cgAnnotatedSessionEventTap,
                 placeAt: .tailAppendEventTap,
                 for: .listenOnly
             )
-            // 初始化滚动事件发送器
-            ScrollPoster.shared.create()
+            guard ScrollPoster.shared.create() else {
+                throw ScrollCoreLifecycleError.posterCreationFailed
+            }
+
+            scrollEventInterceptor = pendingScrollEventInterceptor
+            hotkeyEventInterceptor = pendingHotkeyEventInterceptor
+            mouseEventInterceptor = pendingMouseEventInterceptor
+            isActive = true
+            NSLog("[ScrollCore] Enabled")
         } catch {
-            print("[ScrollCore] Create Interceptor failure: \(error)")
+            pendingScrollEventInterceptor?.stop()
+            pendingHotkeyEventInterceptor?.stop()
+            pendingMouseEventInterceptor?.stop()
+            releaseInterceptors()
+            ScrollPoster.shared.destroy()
+            resetRuntimeState()
+            isActive = false
+            NSLog("[ScrollCore] Failed to enable: \(error)")
         }
     }
     // 停止
     func disable() {
-        // Guard
-        if !isActive {return}
+        if !isActive &&
+            scrollEventInterceptor == nil &&
+            hotkeyEventInterceptor == nil &&
+            mouseEventInterceptor == nil &&
+            !ScrollPoster.shared.isReady {
+            resetRuntimeState()
+            return
+        }
         isActive = false
-        // 停止滚动事件发送器
-        resetAdaptiveCadence()
         ScrollPoster.shared.stop()
-        // 停止截取事件
-        scrollEventInterceptor?.stop()
-        hotkeyEventInterceptor?.stop()
-        mouseEventInterceptor?.stop()
+        ScrollPoster.shared.destroy()
+        releaseInterceptors()
+        resetRuntimeState()
+        NSLog("[ScrollCore] Disabled")
     }
 }
 
 private extension ScrollCore {
+    func releaseInterceptors() {
+        scrollEventInterceptor?.stop()
+        hotkeyEventInterceptor?.stop()
+        mouseEventInterceptor?.stop()
+        scrollEventInterceptor = nil
+        hotkeyEventInterceptor = nil
+        mouseEventInterceptor = nil
+    }
+
+    func resetRuntimeState() {
+        dashScroll = false
+        dashAmplification = 1.0
+        toggleScroll = false
+        blockSmooth = false
+        dashKeyHeld = false
+        toggleKeyHeld = false
+        blockKeyHeld = false
+        hidDashHeldCode = nil
+        hidToggleHeldCode = nil
+        hidBlockHeldCode = nil
+        application = nil
+        currentApplication = nil
+        resetAdaptiveCadence()
+    }
+
     func resetAdaptiveCadence() {
         wheelCadenceTracker.reset()
     }

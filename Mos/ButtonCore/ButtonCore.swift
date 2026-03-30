@@ -16,6 +16,12 @@ class ButtonCore {
     
     // 执行状态
     var isActive = false
+    var isHealthy: Bool {
+        guard isActive, let eventInterceptor = eventInterceptor else {
+            return false
+        }
+        return eventInterceptor.isRunning()
+    }
     
     // 拦截层
     var eventInterceptor: Interceptor?
@@ -46,31 +52,36 @@ class ButtonCore {
     
     // 启用按钮监控
     func enable() {
-        if !isActive {
+        if isHealthy { return }
+        if isActive || eventInterceptor != nil {
+            NSLog("ButtonCore: Recycling stale state before enable")
+            disable()
+        }
+        do {
+            eventInterceptor = try Interceptor(
+                event: eventMask,
+                handleBy: buttonEventCallBack,
+                listenOn: .cgAnnotatedSessionEventTap,
+                placeAt: .tailAppendEventTap,
+                for: .defaultTap
+            )
+            isActive = true
             NSLog("ButtonCore enabled")
-            do {
-                eventInterceptor = try Interceptor(
-                    event: eventMask,
-                    handleBy: buttonEventCallBack,
-                    listenOn: .cgAnnotatedSessionEventTap,
-                    placeAt: .tailAppendEventTap,
-                    for: .defaultTap
-                )
-                isActive = true
-            } catch {
-                NSLog("ButtonCore: Failed to create interceptor: \(error)")
-            }
+        } catch {
+            eventInterceptor?.stop()
+            eventInterceptor = nil
+            isActive = false
+            NSLog("ButtonCore: Failed to create interceptor: \(error)")
         }
     }
     
     // 禁用按钮监控
     func disable() {
-        if isActive {
-            NSLog("ButtonCore disabled")
-            eventInterceptor?.stop()
-            eventInterceptor = nil
-            isActive = false
-        }
+        if !isActive && eventInterceptor == nil { return }
+        NSLog("ButtonCore disabled")
+        eventInterceptor?.stop()
+        eventInterceptor = nil
+        isActive = false
     }
     
     // 切换状态

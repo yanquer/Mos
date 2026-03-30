@@ -68,6 +68,8 @@ class ScrollPoster {
     // 状态锁和投递上下文
     private var stateLock = os_unfair_lock_s()
     private let dispatchContext = ScrollDispatchContext.shared
+
+    var isReady: Bool { poster != nil }
 }
 
 // MARK: - 滚动数据更新控制
@@ -184,15 +186,22 @@ extension ScrollPoster {
 // MARK: - 插值数据发送控制
 extension ScrollPoster {
     // 初始化 CVDisplayLink
-    func create() {
+    @discardableResult
+    func create() -> Bool {
+        destroy()
         // 新建一个 CVDisplayLinkSetOutputCallback 来执行循环
-        CVDisplayLinkCreateWithActiveCGDisplays(&poster)
-        if let validPoster = poster {
-            CVDisplayLinkSetOutputCallback(validPoster, { (displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext) -> CVReturn in
-                ScrollPoster.shared.processing()
-                return kCVReturnSuccess
-            }, nil)
+        var nextPoster: CVDisplayLink?
+        let result = CVDisplayLinkCreateWithActiveCGDisplays(&nextPoster)
+        guard result == kCVReturnSuccess, let validPoster = nextPoster else {
+            NSLog("[ScrollPoster] Failed to create CVDisplayLink: \(result)")
+            return false
         }
+        CVDisplayLinkSetOutputCallback(validPoster, { (displayLink, inNow, inOutputTime, flagsIn, flagsOut, displayLinkContext) -> CVReturn in
+            ScrollPoster.shared.processing()
+            return kCVReturnSuccess
+        }, nil)
+        poster = validPoster
+        return true
     }
     // 启动事件发送器
     func tryStart() {
@@ -254,6 +263,13 @@ extension ScrollPoster {
                   diag.skippedSyntheticEvents, diag.updateSnapshotFailures)
         }
 #endif
+    }
+
+    func destroy() {
+        if let validPoster = poster, CVDisplayLinkIsRunning(validPoster) {
+            CVDisplayLinkStop(validPoster)
+        }
+        poster = nil
     }
 }
 
